@@ -6,6 +6,7 @@ from __future__ import annotations
 import os
 import re
 import tempfile
+import ipaddress
 from pathlib import Path
 
 
@@ -16,6 +17,7 @@ REQUIRED = {
     "NETBOOT_SERVER_IP",
     "NETBOOT_SUBNET",
     "NETBOOT_DHCP_PROXY_RANGE",
+    "NETBOOT_DHCP_MODE",
     "NETBOOT_DNSMASQ_PORT",
     "NETBOOT_HTTP_PORT",
     "NETBOOT_HTTP_ROOT",
@@ -71,13 +73,62 @@ def render(template: Path, destination: Path, values: dict[str, str]) -> None:
             os.unlink(temporary)
 
 
+def dhcp_values(values: dict[str, str]) -> dict[str, str]:
+    mode = os.environ.get("NETBOOT_DHCP_MODE_OVERRIDE") or values["NETBOOT_DHCP_MODE"]
+    if mode not in {"proxy", "server"}:
+        raise ValueError("NETBOOT_DHCP_MODE must be proxy or server")
+    values = dict(values)
+    values["NETBOOT_DHCP_MODE"] = mode
+    if mode == "proxy":
+        values["NETBOOT_DHCP_RANGE_LINE"] = f"dhcp-range={values['NETBOOT_DHCP_PROXY_RANGE']},proxy"
+        values["NETBOOT_DHCP_OPTIONS"] = ""
+        return values
+
+    required = {
+        "NETBOOT_DHCP_RANGE_START",
+        "NETBOOT_DHCP_RANGE_END",
+        "NETBOOT_DHCP_LEASE_TIME",
+        "NETBOOT_DHCP_GATEWAY",
+        "NETBOOT_DHCP_DNS",
+        "NETBOOT_DHCP_LEASE_FILE",
+    }
+    missing = sorted(key for key in required if not values.get(key))
+    if missing:
+        raise ValueError("server DHCP mode is missing: " + ", ".join(missing))
+    network = ipaddress.ip_network(values["NETBOOT_SUBNET"], strict=False)
+    start = ipaddress.ip_address(values["NETBOOT_DHCP_RANGE_START"])
+    end = ipaddress.ip_address(values["NETBOOT_DHCP_RANGE_END"])
+    server = ipaddress.ip_address(values["NETBOOT_SERVER_IP"])
+    gateway = ipaddress.ip_address(values["NETBOOT_DHCP_GATEWAY"])
+    if not (start in network and end in network and start <= end):
+        raise ValueError("server DHCP range must be ordered and inside NETBOOT_SUBNET")
+    if server >= start and server <= end:
+        raise ValueError("server DHCP range must not include NETBOOT_SERVER_IP")
+    if gateway not in network:
+        raise ValueError("NETBOOT_DHCP_GATEWAY must be inside NETBOOT_SUBNET")
+    values["NETBOOT_DHCP_RANGE_LINE"] = (
+        f"dhcp-range={start},{end},{network.netmask},{values['NETBOOT_DHCP_LEASE_TIME']}"
+    )
+    values["NETBOOT_DHCP_OPTIONS"] = "\n".join(
+        (
+            f"dhcp-option=option:router,{values['NETBOOT_DHCP_GATEWAY']}",
+            f"dhcp-option=option:dns-server,{values['NETBOOT_DHCP_DNS']}",
+            "dhcp-authoritative",
+            f"dhcp-leasefile={values['NETBOOT_DHCP_LEASE_FILE']}",
+        )
+    )
+    return values
+
+
 def main() -> int:
     root = Path(__file__).resolve().parents[1]
     env_path = root / "config" / "netboot.env"
     try:
-        values = read_env(env_path)
+        values = dhcp_values(read_env(env_path))
         generated = root / ".runtime" / "generated"
         render(root / "config" / "dnsmasq.conf", generated / "dnsmasq.conf", values)
+        if values["NETBOOT_DHCP_MODE"] == "server":
+            print("WARNING: authoritative DHCP mode is enabled; disable every other DHCP server on this LAN.", file=os.sys.stderr)
         render(root / "config" / "Caddyfile", generated / "Caddyfile", values)
     except (OSError, ValueError) as error:
         print(f"render-netboot-config: {error}", file=os.sys.stderr)

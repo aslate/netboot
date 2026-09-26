@@ -14,6 +14,12 @@ The existing router must remain the authoritative DHCP server. dnsmasq runs
 only as a proxy-DHCP/TFTP service and must not be given an ordinary address
 pool on this LAN.
 
+For an isolated VLAN where this host should provide leases, set
+`NETBOOT_DHCP_MODE=server` or run `make start DHCP_MODE=server`. Configure the
+centralized range, gateway, DNS, and lease-file values in
+`config/netboot.env`, and disable the router's DHCP service first. The server
+mode warning is intentional but cannot detect a remote competing DHCP server.
+
 ## 1. Copy the complete project
 
 Install it at the configured absolute path and preserve ownership, modes, and

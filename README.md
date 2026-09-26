@@ -21,6 +21,10 @@ The router remains the address-giving DHCP server. dnsmasq supplies PXE
 metadata and secure TFTP on `eno1`; Caddy supplies the menu and all substantial
 boot payloads over HTTP.
 
+Proxy-DHCP is the default. `make start DHCP_MODE=server` deliberately selects
+an ordinary dnsmasq lease pool and prints a prominent warning; disable every
+other DHCP server on that LAN before using it.
+
 ## Working targets
 
 - Clonezilla Live 3.3.3-15
@@ -64,8 +68,8 @@ material, and relevant signatures are maintained in the repository.
 ## Setting up another host
 
 [`config/netboot.env`](config/netboot.env) is the centralized record of host
-settings and service configuration. The service configuration and boot recipes
-retain their static values; see the host guide before changing site values.
+settings and service configuration. Service templates are rendered from it;
+see the host guide before changing site values.
 
 See [`docs/host-setup.md`](docs/host-setup.md) for the complete migration,
 network, package, service, and firewall procedure. The common entry points are:
@@ -77,6 +81,7 @@ make setup-with-firewall   # explicitly enables and configures firewalld
 make links                 # recreate HTTP compatibility symlinks
 make validate
 make check                 # developer shell/tests/migration checks
+make start DHCP_MODE=server # deliberate authoritative-DHCP invocation
 ```
 
 Run `make help` for all setup and day-to-day operations. A Git clone does not

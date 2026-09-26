@@ -29,6 +29,7 @@ class NetbootCtlTests(unittest.TestCase):
             f"NETBOOT_PROJECT_ROOT={self.root}\n"
             "NETBOOT_INTERFACE=eth99\nNETBOOT_SERVER_IP=10.8.0.2\n"
             "NETBOOT_SUBNET=10.8.0.0/24\nNETBOOT_DHCP_PROXY_RANGE=10.8.0.0\n"
+            "NETBOOT_DHCP_MODE=proxy\n"
             "NETBOOT_DNSMASQ_PORT=0\nNETBOOT_HTTP_PORT=8080\n"
             f"NETBOOT_HTTP_ROOT={self.root / 'http'}\nNETBOOT_TFTP_ROOT={self.root / 'tftp'}\n"
             f"NETBOOT_RUNTIME_ROOT={runtime}\nNETBOOT_GENERATED_ROOT={runtime / 'generated'}\n"

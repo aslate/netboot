@@ -37,7 +37,7 @@ services: ## Render and start standalone Caddy and dnsmasq
 	./scripts/netbootctl start
 
 validate: ## Validate rendered configuration, processes, listeners, and HTTP/PXE state
-	./scripts/setup/90-validate-host.sh
+	NETBOOT_DHCP_MODE_OVERRIDE=$(DHCP_MODE) ./scripts/setup/90-validate-host.sh
 
 setup: ## Install this host without enabling or changing its firewall
 	$(MAKE) packages
@@ -55,7 +55,7 @@ setup-with-firewall: ## Full setup, explicitly enabling firewalld (use locally)
 	$(MAKE) validate
 
 start: ## Start Caddy and dnsmasq
-	./scripts/netbootctl start
+	./scripts/netbootctl start $(if $(DHCP_MODE),--dhcp-mode $(DHCP_MODE),)
 
 stop: ## Stop dnsmasq and Caddy
 	./scripts/netbootctl stop

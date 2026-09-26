@@ -10,6 +10,7 @@ RUNTIME="$NETBOOT_RUNTIME_ROOT"
 GENERATED="$NETBOOT_GENERATED_ROOT"
 LOGS="$NETBOOT_LOG_ROOT"
 STATE="$RUNTIME/state"
+CLI_DHCP_MODE="${NETBOOT_DHCP_MODE_OVERRIDE:-}"
 
 usage() {
 	cat <<'EOF'
@@ -30,7 +31,7 @@ EOF
 
 need_root() {
 	if ((EUID != 0)); then
-		exec sudo "$0" "$@"
+		exec sudo env "NETBOOT_DHCP_MODE_OVERRIDE=$CLI_DHCP_MODE" "$0" "$@"
 	fi
 }
 
@@ -188,6 +189,30 @@ logs() { tail -n 100 -F "$NETBOOT_CADDY_LOG" "$NETBOOT_DNSMASQ_LOG"; }
 main() {
 	local action=${1:-help}
 	shift || true
+	while (($#)); do
+		case "$1" in
+		--dhcp-mode=*) CLI_DHCP_MODE=${1#*=} ;;
+		--dhcp-mode)
+			shift
+			(($#)) || {
+				echo "--dhcp-mode requires proxy or server" >&2
+				return 2
+			}
+			CLI_DHCP_MODE=$1
+			;;
+		*)
+			echo "netbootctl: unknown option '$1'" >&2
+			usage >&2
+			return 2
+			;;
+		esac
+		shift
+	done
+	if [[ -n "$CLI_DHCP_MODE" && "$CLI_DHCP_MODE" != proxy && "$CLI_DHCP_MODE" != server ]]; then
+		echo "netbootctl: DHCP mode must be proxy or server" >&2
+		return 2
+	fi
+	export NETBOOT_DHCP_MODE_OVERRIDE="$CLI_DHCP_MODE"
 	case "$action" in
 	render)
 		prepare_runtime
