@@ -2,7 +2,7 @@ SHELL := /bin/bash
 
 .DEFAULT_GOAL := help
 .NOTPARALLEL:
-.PHONY: help network preflight packages bootstrap links firewall firewall-rules firewall-enable \
+.PHONY: help network preflight packages permissions bootstrap links firewall firewall-rules firewall-enable \
 	firewall-remove services render validate setup setup-with-firewall start stop \
 	restart reload status logs tui check
 
@@ -20,6 +20,9 @@ packages: ## Install required host and image-preparation packages
 
 bootstrap: ## Install the packaged UEFI iPXE bootstrap into tftp/
 	./scripts/setup/20-install-ipxe-bootstrap.sh
+
+permissions: ## Create content groups and apply owner/group permissions
+	./scripts/setup/15-configure-content-permissions.sh
 
 links: ## Recreate the HTTP compatibility symlinks
 	./scripts/setup/25-recreate-http-symlinks.sh
@@ -46,6 +49,7 @@ validate: ## Validate rendered configuration, processes, listeners, and HTTP/PXE
 
 setup: ## Install this host without enabling or changing its firewall
 	$(MAKE) packages
+	$(MAKE) permissions
 	$(MAKE) bootstrap
 	$(MAKE) links
 	$(MAKE) services
@@ -53,6 +57,7 @@ setup: ## Install this host without enabling or changing its firewall
 
 setup-with-firewall: ## Full setup, enabling the detected firewall backend (use locally)
 	$(MAKE) packages
+	$(MAKE) permissions
 	$(MAKE) bootstrap
 	$(MAKE) links
 	$(MAKE) firewall-enable

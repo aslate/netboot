@@ -7,6 +7,9 @@ set -euo pipefail
 source "$(dirname -- "${BASH_SOURCE[0]}")/_common.sh"
 require_project_location
 
+content_owner=${NETBOOT_CONTENT_OWNER:-$(id -un)}
+tftp_group=${NETBOOT_TFTP_GROUP:-tftp}
+
 ipxe_share=${NETBOOT_IPXE_SHARE_DIR:-/usr/share/ipxe}
 family=$(detect_host_family) || exit 1
 case "$family" in
@@ -49,14 +52,14 @@ check_destination "$source_ipxe" "$destination_uefi"
 check_destination "$source_bios" "$destination_bios"
 
 if [[ ! -d "$PROJECT_ROOT/tftp" ]]; then
-    run_as_root install -d -m 0755 "$PROJECT_ROOT/tftp"
+    run_as_root install -o "$content_owner" -g "$tftp_group" -d -m 2775 "$PROJECT_ROOT/tftp"
 fi
 copy_if_needed() {
     local source=$1 destination=$2
     if [[ -e "$destination" ]] && cmp -s "$source" "$destination"; then
         echo "Unchanged iPXE bootstrap: $destination"
     else
-        run_as_root install -m 0644 "$source" "$destination"
+        run_as_root install -o "$content_owner" -g "$tftp_group" -m 0644 "$source" "$destination"
         echo "Installed iPXE bootstrap: $destination"
     fi
 }

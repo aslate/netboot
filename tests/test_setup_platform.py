@@ -56,6 +56,9 @@ fi
             'NETBOOT_OS_RELEASE': str(self.os_release),
             'NETBOOT_IPXE_SHARE_DIR': str(self.share),
             'NETBOOT_TEST_LOG': str(self.log),
+            # The isolated test host has no site-specific aslate/tftp accounts.
+            'NETBOOT_CONTENT_OWNER': os.environ.get('USER', 'agent'),
+            'NETBOOT_TFTP_GROUP': os.environ.get('GROUP', os.environ.get('USER', 'agent')),
         })
 
     def executable(self, name, text):
