@@ -1,0 +1,50 @@
+version: 1
+transition: "Fedora 43 netboot host support"
+status: active
+result: null
+active_session: S2
+active_stage: preparation
+completed_stages: [S1]
+next_entry_point: "T3: inspect installed dnsmasq includes and service state before any install"
+current_architecture:
+  shell_config: "config/netboot.env supplies host values to setup and preparation shell scripts; service and boot files stay static."
+  packages: "Makefile packages target dispatches to Arch or Fedora installers; Fedora queries every package before install."
+  bootstrap: "scripts/setup/20-install-ipxe-bootstrap.sh selects Fedora/Arch packaged UEFI paths, prefers project-root BIOS image, and preserves different installed files."
+  services: "scripts/setup/40-install-enable-services.sh calls scripts/apply-netboot-config.sh; current validation tests only the fragment."
+  payload: "Fedora KDE Installer entry uses Fedora Everything netinst 44-1.7 plus fedora-kde.ks."
+target_architecture:
+  sessions: "S1 platform; S2 safe service setup; S3 delivery/repository gate; S4 host/PXE acceptance."
+source_of_truth:
+  implementation_requirements: "User-supplied Fedora 43 netboot host support implementation plan in this conversation."
+  project_configuration: "config/dnsmasq.conf, config/Caddyfile, Makefile, and current menu/recipes."
+precedence:
+  - "Preserve existing tracked and untracked user changes."
+  - "Preserve /srv/netboot, eno1, 192.168.1.2, 192.168.1.0/24, current menu/default, Fedora 44 recipe, and Kickstart."
+  - "Router remains the address-giving DHCP server."
+models: []
+compatibility_boundaries:
+  - "Arch/CachyOS behavior remains supported."
+  - "Fedora 44 container supports repository checks; Fedora 43 host and disposable clients are needed for operational acceptance."
+integration_points:
+  - "make packages -> platform dispatch; make bootstrap -> iPXE copier."
+  - "make services and netbootctl reload -> shared config installer."
+  - "SELinux reconciliation after config installation and before activation; firewall remains opt-in."
+validation:
+  baseline: "14 Python tests, shell syntax, ShellCheck on changed tracked scripts, and isolated env-loader smoke checks passed on 2026-09-24."
+  host: "Unavailable in Fedora 44 container: /srv/netboot, /etc/dnsmasq.conf, /etc/dnsmasq.d, and /etc/caddy/Caddyfile absent."
+  s1: "21 Python tests passed; Bash syntax, ShellCheck on scoped tracked scripts, git diff --check, and make -n packages passed. No host package or service operation ran."
+  commits: "dd605e1 Fedora setup; e268348 Super Grub; cfe7d39 backup helpers; a86b6e9 BIOS source; 67f12b4 runbook removals."
+  pending: "ISO checksum, effective deployed dnsmasq includes, Fedora 43 host and client boot evidence."
+known_risks:
+  - "Fedora KDE Kickstart repartitions sda; boot only disposable clients."
+  - "Current backup path under /etc/dnsmasq.d may be parsed by an active include."
+  - "The committed backup helpers name different backup drives and have not been run on the host."
+  - "A nested netboot checkout, Python cache, and temporary README duplicate remain untracked; the mount denied removal of the duplicate."
+session_protocol:
+  enabled: true
+  start: [load_queue_and_shared_context, review_affected_source_and_tests, review_boundary_models_and_design, establish_active_session_plan]
+  end: [run_acceptance_checks, record_completed_work, update_shared_context, write_handover_when_needed, record_next_entry_point]
+handover:
+  last_session: S1
+  last_handover_file: sessions/S1-handover.md
+  next_session_plan_file: sessions/S2-plan.md

@@ -1,0 +1,15 @@
+#!ipxe
+
+dhcp
+
+set base http://192.168.1.2/systemrescue
+set root ${base}/sysresccd
+set boot ${root}/boot/x86_64
+
+initrd --name intel_ucode.img ${root}/boot/intel_ucode.img
+initrd --name amd_ucode.img ${root}/boot/amd_ucode.img
+initrd --name sysresccd.img ${boot}/sysresccd.img
+kernel ${boot}/vmlinuz archisobasedir=sysresccd archiso_http_srv=${base}/ ip=dhcp checksum copytoram dostartx
+
+imgstat
+boot

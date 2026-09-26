@@ -1,0 +1,7 @@
+#!ipxe
+
+dhcp
+imgfree
+
+echo Starting the AlmaLinux GRUB EFI loader...
+chain http://192.168.1.2/almalinux-live/grubx64.efi

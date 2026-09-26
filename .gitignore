@@ -1,0 +1,174 @@
+/*.iso
+/netboot-ext4.img
+/ls
+/.netboot-edit-*
+/.git-corrupt-20260926/
+/netboot/
+**/__pycache__/
+*.kate-swp
+images/
+alma10/
+tftp/
+tftp/alma10/
+clonezilla/
+archive/
+*.log
+*.leases
+http/
+start.sh
+stop.sh
+dnsmasq.conf
+dnsmasq.leases
+dnsmasq.log
+
+# Project-owned service configuration is tracked even though legacy runtime
+# files elsewhere in the tree remain ignored.
+!config/dnsmasq.conf
+!config/Caddyfile
+
+# Track the server-owned HTTP entrypoints while leaving generated payloads
+# under http/ ignored until their package migrations are complete.
+!http/
+http/*
+!http/menu/
+!http/menu/**
+!http/clonezilla
+!http/alma10
+!http/almalinux
+!http/kickstarts
+!http/gparted
+!http/debian-live
+!http/cachyos
+!http/systemrescue
+!http/rescuezilla
+!http/fedora-workstation
+!http/fedora-sway
+!http/proxmox
+!http/supergrub
+
+# Track server-wide administration scripts.
+!scripts/
+!scripts/**
+
+# Clonezilla package payloads remain runtime artifacts; package metadata and
+# boot/preparation files are tracked.
+!packages/
+!packages/clonezilla/
+!packages/clonezilla/**
+packages/clonezilla/clonezilla-live-*.zip
+packages/clonezilla/clonezilla-live-*.sha256
+packages/clonezilla/vmlinuz
+packages/clonezilla/initrd.img
+packages/clonezilla/filesystem.squashfs
+.clonezilla-stage/
+packages/almalinux/*.iso
+packages/almalinux/vmlinuz
+packages/almalinux/initrd.img
+packages/almalinux/images/install.img
+
+# GParted package payloads remain runtime artifacts; package metadata,
+# checksum material, and preparation files are tracked.
+!packages/gparted/
+!packages/gparted/**
+packages/gparted/gparted-live-*.zip
+packages/gparted/vmlinuz
+packages/gparted/initrd.img
+packages/gparted/filesystem.squashfs
+packages/gparted/*.zip.new
+
+# Debian Live package payloads remain runtime artifacts; metadata,
+# checksums, and preparation files are tracked.
+!packages/debian-live/
+!packages/debian-live/**
+packages/debian-live/debian-live-*.iso
+packages/debian-live/vmlinuz
+packages/debian-live/initrd.img
+packages/debian-live/filesystem.squashfs
+
+# CachyOS package payloads remain runtime artifacts; package metadata,
+# checksum material, and preparation files are tracked.
+!packages/cachyos/
+!packages/cachyos/**
+packages/cachyos/cachyos-desktop-linux-*.iso
+packages/cachyos/arch/
+.cachyos-stage/
+
+# SystemRescue package payload remains a runtime artifact; retain its
+# package metadata, source verification material, recipe, and preparation
+# script in Git.
+packages/systemrescue/systemrescue-*.iso
+packages/systemrescue/sysresccd/
+.systemrescue-stage/
+
+# Rescuezilla keeps the ISO and extracted casper boot files as runtime
+# artifacts; package metadata, checksums, recipe, and preparation script are
+# tracked.
+!packages/rescuezilla/
+!packages/rescuezilla/**
+packages/rescuezilla/rescuezilla-*.iso
+packages/rescuezilla/vmlinuz
+packages/rescuezilla/initrd.lz
+.rescuezilla-stage/
+
+# Fedora Workstation package payload remains a runtime artifact; retain its
+# package metadata, checksum material, recipe, and preparation script.
+!packages/fedora-workstation/
+!packages/fedora-workstation/**
+packages/fedora-workstation/Fedora-Workstation-*.iso
+packages/fedora-workstation/vmlinuz
+packages/fedora-workstation/initrd.img
+packages/fedora-workstation/squashfs.img
+.fedora-workstation-stage/
+
+# Fedora Sway package payload remains a runtime artifact; retain its
+# package metadata, checksum material, recipe, and preparation script.
+!packages/fedora-sway/
+!packages/fedora-sway/**
+packages/fedora-sway/Fedora-Sway-*.iso
+packages/fedora-sway/vmlinuz
+packages/fedora-sway/initrd.img
+packages/fedora-sway/squashfs.img
+.fedora-sway-stage/
+
+# Fedora installer package retains metadata, Kickstart, recipe, and checksum
+# material while ignoring the netinst ISO and extracted boot files.
+!packages/fedora-installer/
+!packages/fedora-installer/**
+packages/fedora-installer/Fedora-Everything-*.iso
+packages/fedora-installer/vmlinuz
+packages/fedora-installer/initrd.img
+.fedora-installer-stage/
+
+!http/fedora-installer
+
+# AlmaLinux Live package payload remains a runtime artifact; retain its
+# metadata, checksum, recipe, and preparation script.
+!packages/almalinux-live/
+!packages/almalinux-live/**
+packages/almalinux-live/AlmaLinux-10.2-x86_64-Live-KDE.iso
+packages/almalinux-live/vmlinuz
+packages/almalinux-live/initrd.img
+packages/almalinux-live/squashfs.img
+.almalinux-live-stage/
+
+!http/almalinux-live
+
+# Preserve the superseded AlmaLinux implementation as tracked historical
+# material while leaving the rest of the legacy archive ignored.
+!archive/
+archive/*
+!archive/almalinux-legacy/
+archive/almalinux-legacy/*
+!archive/almalinux-legacy/package/
+archive/almalinux-legacy/package/*
+!archive/almalinux-legacy/package/*.md
+!archive/almalinux-legacy/package/*.ipxe
+!archive/almalinux-legacy/package/*.sh
+!archive/almalinux-legacy/package/*.ks
+!archive/almalinux-legacy/package/CHECKSUM
+!archive/almalinux-legacy/README.md
+
+# Do not re-include local runtime/editor artifacts through the broad
+# package/script exceptions above.
+scripts/__pycache__/
+packages/**/.prepare.sh.kate-swp

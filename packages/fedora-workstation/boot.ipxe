@@ -1,0 +1,12 @@
+#!ipxe
+
+dhcp
+
+set base http://192.168.1.2/fedora-workstation
+set live ${base}/squashfs.img
+
+initrd --name initrd.img ${base}/initrd.img
+kernel ${base}/vmlinuz initrd=initrd.img root=live:${live} rd.live.image ip=dhcp quiet rhgb
+
+imgstat
+boot

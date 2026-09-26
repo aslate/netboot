@@ -1,0 +1,175 @@
+#!/usr/bin/env bash
+set -uo pipefail
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+APPLY_CONFIG="$SCRIPT_DIR/apply-netboot-config.sh"
+TUI="$SCRIPT_DIR/netboot-tui.py"
+SERVICES=(caddy.service dnsmasq.service)
+
+usage() {
+    cat <<'EOF'
+Usage: netbootctl <command>
+       netbootctl
+
+Commands:
+  start         Start Caddy and dnsmasq
+  stop          Stop dnsmasq and Caddy
+  reload        Install, validate, and activate the project configuration
+  logs          Show the latest 100 service log entries and follow them
+  tui [options] Launch the netboot visibility TUI
+  help          Show this help
+
+Running without a command opens an interactive menu when attached to a terminal.
+EOF
+}
+
+run_root() {
+    if (( EUID == 0 )); then
+        "$@"
+    else
+        sudo "$@"
+    fi
+}
+
+require_no_args() {
+    local command_name=$1
+    shift
+    if (( $# != 0 )); then
+        echo "netbootctl: '$command_name' does not accept arguments" >&2
+        usage >&2
+        return 2
+    fi
+}
+
+show_states() {
+    local service state result=0
+    for service in "${SERVICES[@]}"; do
+        if state="$(run_root systemctl is-active "$service" 2>/dev/null)"; then
+            printf '%-16s %s\n' "$service" "$state"
+        else
+            state=${state:-unknown}
+            printf '%-16s %s\n' "$service" "$state"
+            result=1
+        fi
+    done
+    return "$result"
+}
+
+start_services() {
+    echo "Starting Caddy..."
+    run_root systemctl start caddy.service || return
+    echo "Starting dnsmasq..."
+    run_root systemctl start dnsmasq.service || return
+    show_states
+}
+
+stop_services() {
+    echo "Stopping dnsmasq..."
+    run_root systemctl stop dnsmasq.service || return
+    echo "Stopping Caddy..."
+    run_root systemctl stop caddy.service || return
+    echo "Netboot services stopped."
+}
+
+reload_config() {
+    run_root "$APPLY_CONFIG"
+}
+
+show_logs() {
+    run_root journalctl \
+        -n 100 -f \
+        -u dnsmasq.service \
+        -u caddy.service \
+        -o short-iso \
+        --no-pager
+}
+
+load_tui() {
+    run_root "$TUI" "$@"
+}
+
+run_action() {
+    local action=$1
+    shift
+    case "$action" in
+        start)
+            require_no_args start "$@" || return
+            start_services
+            ;;
+        stop)
+            require_no_args stop "$@" || return
+            stop_services
+            ;;
+        reload)
+            require_no_args reload "$@" || return
+            reload_config
+            ;;
+        logs)
+            require_no_args logs "$@" || return
+            show_logs
+            ;;
+        tui)
+            load_tui "$@"
+            ;;
+        help|-h|--help)
+            require_no_args help "$@" || return
+            usage
+            ;;
+        *)
+            echo "netbootctl: unknown command '$action'" >&2
+            usage >&2
+            return 2
+            ;;
+    esac
+}
+
+interactive_menu() {
+    local action choice status
+    while true; do
+        printf '\nNetboot server\n'
+        printf '  1) Start services\n'
+        printf '  2) Stop services\n'
+        printf '  3) Reload configuration\n'
+        printf '  4) Show logs\n'
+        printf '  5) Load TUI\n'
+        printf '  6) Quit\n'
+        read -r -p 'Select an action [1-6]: ' choice || return 0
+        case "$choice" in
+            1) action=start ;;
+            2) action=stop ;;
+            3) action=reload ;;
+            4) action=logs ;;
+            5) action=tui ;;
+            6|q|Q) return 0 ;;
+            *)
+                echo "Invalid selection: $choice" >&2
+                continue
+                ;;
+        esac
+        if run_action "$action"; then
+            status=0
+        else
+            status=$?
+            if (( status != 130 )); then
+                echo "Action '$action' failed with status $status." >&2
+            fi
+        fi
+    done
+}
+
+main() {
+    if (( $# == 0 )); then
+        if [[ ! -t 0 || ! -t 1 ]]; then
+            echo "netbootctl: a command is required when not running interactively" >&2
+            usage >&2
+            return 2
+        fi
+        interactive_menu
+        return
+    fi
+    local action=$1
+    shift
+    run_action "$action" "$@"
+}
+
+main "$@"

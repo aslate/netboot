@@ -1,0 +1,15 @@
+#!ipxe
+
+dhcp
+
+set base http://192.168.1.2/cachyos
+set install_dir arch
+set kernel ${base}/${install_dir}/boot/x86_64/vmlinuz-linux-cachyos
+set initrd ${base}/${install_dir}/boot/x86_64/initramfs-linux-cachyos.img
+set archiso_http ${base}/
+
+initrd --name initramfs-linux-cachyos.img ${initrd}
+kernel ${kernel} archisobasedir=${install_dir} archiso_http_srv=${archiso_http} BOOTIF=${net0/mac} ip=dhcp checksum=y cow_spacesize=10G copytoram=auto module_blacklist=pcspkr i915.modeset=1 amdgpu.modeset=1 nvme_load=yes
+
+imgstat
+boot

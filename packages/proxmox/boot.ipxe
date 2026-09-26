@@ -1,0 +1,36 @@
+#!ipxe
+
+dhcp
+
+set base http://192.168.1.2/proxmox
+set iso ${base}/proxmox-ve_9.2-1-pxe.iso
+
+menu Proxmox VE Installer 9.2-1
+item gui Graphical installer
+item tui Terminal installer
+item debug Debug installer
+choose --default gui --timeout 10000 target || goto failed
+goto ${target}
+
+:gui
+set options splash=silent
+goto load
+
+:tui
+set options splash=silent proxmox-tui-mode vga=788
+goto load
+
+:debug
+set options splash=verbose proxmox-debug proxmox-tui-mode vga=788
+goto load
+
+:load
+kernel ${base}/vmlinuz ramdisk_size=16777216 rw quiet ${options} initrd=initrd.img
+initrd ${base}/initrd.img
+initrd ${iso} proxmox.iso
+imgstat
+boot
+
+:failed
+echo Proxmox installer could not be started.
+prompt Press any key to return...

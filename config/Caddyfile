@@ -1,0 +1,8 @@
+:80 {
+    root * /srv/netboot/http
+    file_server browse
+    log {
+        output stdout
+        format json
+    }
+}

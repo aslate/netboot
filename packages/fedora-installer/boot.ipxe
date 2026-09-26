@@ -1,0 +1,12 @@
+#!ipxe
+
+dhcp
+
+set base http://192.168.1.2/fedora-installer
+set repo https://dl.fedoraproject.org/pub/fedora/linux/releases/44/Everything/x86_64/os/
+
+initrd --name initrd.img ${base}/initrd.img
+kernel ${base}/vmlinuz initrd=initrd.img ip=dhcp rd.neednet=1 inst.repo=${repo} inst.ks=${base}/fedora-kde.ks inst.graphical
+
+imgstat
+boot

@@ -1,0 +1,68 @@
+#!ipxe
+
+menu CachyOS Netboot
+item clonezilla Clonezilla Live 3.3.3-15
+item gparted GParted Live 1.8.1-6
+item debian-live Debian Live Standard 13.7.0
+item fedora-installer Fedora KDE Installer 44
+item fedora-workstation Fedora Workstation 44
+item fedora-sway Fedora Sway Live 44
+item almalinux-live AlmaLinux Live KDE 10.2
+item cachyos CachyOS Live 260809
+item systemrescue SystemRescue 13.02
+item rescuezilla Rescuezilla 2.6.2
+item proxmox Proxmox VE Installer 9.2-1
+item supergrub Super Grub2 Disk 2.06s4
+item almalinux AlmaLinux 10.2 Installer
+item shell  iPXE shell
+item reboot Reboot
+choose --timeout 10000 --default fedora-sway selected || goto shell
+goto ${selected}
+
+:clonezilla
+chain http://192.168.1.2/clonezilla/boot.ipxe
+
+:gparted
+chain http://192.168.1.2/gparted/boot.ipxe
+
+:debian-live
+chain http://192.168.1.2/debian-live/boot.ipxe
+
+:fedora-installer
+chain http://192.168.1.2/fedora-installer/boot.ipxe
+
+:fedora-workstation
+chain http://192.168.1.2/fedora-workstation/boot.ipxe
+
+:fedora-sway
+chain http://192.168.1.2/fedora-sway/boot.ipxe
+
+:almalinux-live
+chain http://192.168.1.2/almalinux-live/boot.ipxe
+
+:cachyos
+chain http://192.168.1.2/cachyos/boot.ipxe
+
+:systemrescue
+chain http://192.168.1.2/systemrescue/boot.ipxe
+
+:rescuezilla
+chain http://192.168.1.2/rescuezilla/boot.ipxe
+
+:proxmox
+chain http://192.168.1.2/proxmox/boot.ipxe
+
+:supergrub
+chain http://192.168.1.2/supergrub/boot.ipxe
+
+:almalinux
+chain http://192.168.1.2/almalinux/boot.ipxe
+
+:shell
+echo No operating-system image selected.
+echo Use 'exit' to return to this menu.
+shell
+goto shell
+
+:reboot
+reboot

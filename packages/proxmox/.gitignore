@@ -1,0 +1,4 @@
+proxmox-ve_*.iso
+proxmox-ve_*-pxe.iso
+vmlinuz
+initrd.img

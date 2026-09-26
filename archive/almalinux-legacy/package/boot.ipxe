@@ -1,0 +1,7 @@
+#!ipxe
+dhcp
+initrd --name initrd.img http://192.168.1.2/alma10/images/pxeboot/initrd.img
+kernel http://192.168.1.2/alma10/images/pxeboot/vmlinuz ip=dhcp initrd=initrd.img console=tty0 inst.text rd.debug
+imgstat
+sleep 2
+boot

@@ -1,0 +1,12 @@
+#!ipxe
+
+dhcp
+
+set base http://192.168.1.2/debian-live
+set squashfs ${base}/filesystem.squashfs
+
+initrd --name initrd.img ${base}/initrd.img
+kernel ${base}/vmlinuz initrd=initrd.img boot=live components fetch=${squashfs}
+
+imgstat
+boot

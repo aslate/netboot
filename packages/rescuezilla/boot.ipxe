@@ -1,0 +1,12 @@
+#!ipxe
+
+dhcp
+
+set base http://192.168.1.2/rescuezilla
+set iso ${base}/rescuezilla-2.6.2-64bit.resolute.iso
+
+initrd --name initrd.lz ${base}/initrd.lz
+kernel ${base}/vmlinuz initrd=initrd.lz boot=casper netboot=url url=${iso} ip=dhcp quiet splash fastboot toram fsck.mode=skip noprompt edd=on
+
+imgstat
+boot

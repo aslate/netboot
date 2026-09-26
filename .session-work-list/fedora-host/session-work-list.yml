@@ -1,0 +1,66 @@
+session_work_lists:
+  version: 1
+  active_session: S2
+  rules:
+    operate_only_on_active_session: true
+    other_sessions_are_context_only: true
+    do_not_modify_inactive_sessions: true
+    do_not_promote_tasks_without_user_instruction: true
+    do_not_switch_sessions_automatically: true
+    completed_work_is_recorded: true
+    substantial_plan_changes_are_recorded: true
+    expanded_limits_are_session_local: true
+  limits: {max_depth: 2, max_open_tasks: 7, max_raw_tasks: 20}
+  sessions:
+    - session: S1
+      status: done
+      purpose: "Map the checkout and add tested Fedora/Arch platform support."
+      queue:
+        version: 1
+        mode: goal
+        scope: "Map current behavior; add package dispatch and bootstrap selection."
+        current: null
+        supporting: null
+        limits: {max_depth: 2, max_open_tasks: 7, max_raw_tasks: 20}
+        tasks:
+          - {id: T0, status: done, category: change, title: "Centralize shell host settings", parent: null, source: "User steering", exit: "Shell setup and preparation scripts read config/netboot.env; static service and boot files remain unchanged; syntax, ShellCheck, loader smoke test, and 14 Python tests pass.", notes: "Host setup scope chosen by user. Root-level temporary README edit file could not be removed through the workspace mount."}
+          - {id: T1, status: done, category: orient, title: "Complete compatibility map and baseline", parent: null, source: "User implementation plan", exit: "Script/config/test paths, existing edits, effective host configuration where available, package providers, and baseline checks are recorded.", notes: "Map recorded in S1 plan; installed /etc service config is unavailable in container. Prechange Python baseline: 14 passed."}
+          - {id: T2, status: done, category: change, title: "Add package dispatch and bootstrap selection", parent: null, source: "User implementation plan", exit: "Fedora and Arch paths, dependencies, BIOS precedence, overwrite safeguards, and unsupported-host behavior pass isolated tests.", notes: "Fedora/Arch dispatch and bootstrap tests passed; 21 Python tests, syntax, ShellCheck, and diff checks green. No package install attempted."}
+    - session: S2
+      status: active
+      purpose: "Make service installation recoverable and integrate Fedora host policy."
+      queue:
+        version: 1
+        mode: queue-maintenance
+        scope: "Transactional dnsmasq/Caddy config, SELinux labels, and opt-in firewall."
+        current: null
+        supporting: null
+        limits: {max_depth: 2, max_open_tasks: 7, max_raw_tasks: 20}
+        tasks:
+          - {id: T3, status: queued, category: change, title: "Install and validate service configuration transactionally", parent: null, source: "User implementation plan", exit: "Setup/reload use one installer; effective dnsmasq and installed Caddy validate before activation; one include and exact rollback pass tests.", notes: "Inventory originals and per-run copies outside included directories; handle absent files and legacy backups."}
+          - {id: T4, status: queued, category: change, title: "Integrate SELinux and opt-in firewall", parent: null, source: "User implementation plan", exit: "Persistent labels and interface-zone firewall rules converge in isolated tests; failure before activation leaves services untouched.", notes: "Add 0.0.0.0/32 only for DHCP; label real payload paths and TFTP tree."}
+    - session: S3
+      status: inactive
+      purpose: "Prove installer payload delivery and complete the repository gate."
+      queue:
+        version: 1
+        mode: goal
+        scope: "Prepare and validate Fedora installer payload; test and document host setup."
+        current: null
+        supporting: null
+        limits: {max_depth: 2, max_open_tasks: 7, max_raw_tasks: 20}
+        tasks:
+          - {id: T5, status: queued, category: change, title: "Prepare and validate Fedora installer payload", parent: null, source: "User implementation plan", exit: "Checksum, nonempty kernel/initramfs, effective config, labels, and HTTP body checks distinguish missing payload from delivery/config failure.", notes: "Preserve Fedora 44 netinst recipe, KDE Kickstart, menu/default, and version."}
+          - {id: T6, status: queued, category: verify, title: "Run repository gate and finalize host guide", parent: null, source: "User implementation plan", exit: "Existing Python tests, isolated shell tests, syntax checks, and exact setup/recovery guide pass review.", notes: "Mock all privileged operations; keep Fedora 43 operational acceptance separate."}
+    - session: S4
+      status: inactive
+      purpose: "Verify Fedora 43 host delivery and disposable-client boot acceptance."
+      queue:
+        version: 1
+        mode: goal
+        scope: "Fedora 43 enforcing/firewalld setup twice; BIOS/UEFI Anaconda boot; Arch/live-image regression."
+        current: null
+        supporting: null
+        limits: {max_depth: 2, max_open_tasks: 7, max_raw_tasks: 20}
+        tasks:
+          - {id: T7, status: queued, category: verify, title: "Verify Fedora host and PXE acceptance", parent: null, source: "User implementation plan", exit: "Fedora 43 service, label, rule, HTTP/TFTP, router DHCP, BIOS/UEFI Anaconda, and Arch/live-image evidence is recorded as pass/fail.", notes: "Requires Fedora 43 host and disposable clients; Kickstart repartitions sda."}

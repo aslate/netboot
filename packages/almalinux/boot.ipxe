@@ -1,0 +1,7 @@
+#!ipxe
+
+dhcp
+imgfree
+
+echo Starting the AlmaLinux GRUB EFI loader...
+chain tftp://192.168.1.2/boot/grub/x86_64-efi/core.efi

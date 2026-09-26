@@ -1,0 +1,28 @@
+#!ipxe
+
+dhcp
+
+# Follow netboot.xyz's current upstream split: a direct EFI executable for
+# UEFI clients and the hybrid ISO through memdisk for Legacy BIOS clients.
+iseq ${platform} efi && goto uefi
+iseq ${platform} pcbios && goto pcbios
+echo Unsupported iPXE platform: ${platform}
+goto failed
+
+:uefi
+imgfree
+kernel https://github.com/netbootxyz/asset-mirror/releases/download/2.06s4-7d8c9492/supergrub2-classic-x86_64.efi
+boot
+goto failed
+
+:pcbios
+imgfree
+set memdisk http://192.168.1.2/systemrescue/sysresccd/boot/syslinux/memdisk
+set iso http://master.dl.sourceforge.net/project/supergrub2/2.04s1/super_grub2_disk_2.04s1/super_grub2_disk_hybrid_2.04s1.iso
+kernel ${memdisk} iso raw
+initrd --name supergrub2.iso ${iso}
+boot
+
+:failed
+echo Super Grub2 Disk could not be started.
+prompt Press any key to return...
