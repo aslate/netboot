@@ -68,7 +68,7 @@ variables are useful for checks but do not rewrite those configuration files.
 
 `make packages` installs these official-repository packages with
 `pacman -S --needed`: `bash`, `caddy`, `coreutils`, `curl`, `diffutils`,
-`dnsmasq`, `findutils`, `firewalld`, `gawk`, `gzip`, `grep`, `iproute2`,
+`dnsmasq`, `findutils`, `gawk`, `gzip`, `grep`, `iproute2`,
 `ipxe`, `libarchive`, `procps-ng`, `python`, `sed`, `sudo`, `systemd`, `unzip`, `xorriso`,
 and `zstd`. They cover the services, proxy-DHCP/TFTP bootstrap, validation,
 TUI, and every included image-preparation recipe. `ipxe` supplies the UEFI
@@ -87,23 +87,23 @@ make preflight
 ```
 
 For a host whose firewall is already managed separately, install packages,
-the iPXE bootstrap, links, and services without changing firewalld:
+the iPXE bootstrap, links, and services without changing firewall policy:
 
 ```bash
 make setup
 ```
 
-To explicitly enable firewalld and install this project's rules, run the full
-variant from a local console. Enabling a firewall over SSH can cut off access:
+To detect UFW or firewalld and interactively add the project rules, run:
 
 ```bash
-make setup-with-firewall
+make firewall-rules
 ```
 
-If firewalld is already active, `make firewall` adds only the rules. They are
-restricted to source `192.168.1.0/24` and permit DHCP/proxy-DHCP UDP 67, TFTP
-UDP 69, HTTP TCP 80, and PXE proxy UDP 4011. Remove those rules later with
-`make firewall-remove`.
+The script asks separately about HTTP, TFTP, and DHCP/PXE rules. It supports an
+already-active UFW or firewalld installation and does not install either
+backend. Rules are restricted to source `192.168.1.0/24` where appropriate;
+DHCP server traffic also requires UDP 67/68 handling. Remove the rules later
+with `make firewall-remove`.
 
 The service step renders configuration into `.runtime/generated/` and starts
 Caddy and dnsmasq directly. No `/etc` service files, systemd units, or system

@@ -77,7 +77,7 @@ network, package, service, and firewall procedure. The common entry points are:
 ```bash
 make preflight
 make setup                 # leaves firewall management to the host
-make setup-with-firewall   # explicitly enables and configures firewalld
+make firewall-rules        # detect UFW/firewalld and ask before adding rules
 make links                 # recreate HTTP compatibility symlinks
 make validate
 make check                 # developer shell/tests/migration checks

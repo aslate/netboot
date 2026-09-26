@@ -2,7 +2,7 @@ SHELL := /bin/bash
 
 .DEFAULT_GOAL := help
 .NOTPARALLEL:
-.PHONY: help preflight packages bootstrap links firewall firewall-enable \
+.PHONY: help preflight packages bootstrap links firewall firewall-rules firewall-enable \
 	firewall-remove services render validate setup setup-with-firewall start stop \
 	restart reload status logs tui check
 
@@ -21,10 +21,12 @@ bootstrap: ## Install the packaged UEFI iPXE bootstrap into tftp/
 links: ## Recreate the HTTP compatibility symlinks
 	./scripts/setup/25-recreate-http-symlinks.sh
 
-firewall: ## Add netboot rules to an already-running firewalld
+firewall: firewall-rules ## Add netboot rules using the detected firewall backend
+
+firewall-rules: ## Detect UFW/firewalld and guardedly add HTTP/TFTP/DHCP rules
 	./scripts/setup/30-configure-firewalld.sh
 
-firewall-enable: ## Enable firewalld and add netboot rules (use locally)
+firewall-enable: ## Enable detected firewall backend and add rules (use locally)
 	./scripts/setup/30-configure-firewalld.sh --enable
 
 firewall-remove: ## Remove the project netboot firewall rules
@@ -46,7 +48,7 @@ setup: ## Install this host without enabling or changing its firewall
 	$(MAKE) services
 	$(MAKE) validate
 
-setup-with-firewall: ## Full setup, explicitly enabling firewalld (use locally)
+setup-with-firewall: ## Full setup, enabling the detected firewall backend (use locally)
 	$(MAKE) packages
 	$(MAKE) bootstrap
 	$(MAKE) links

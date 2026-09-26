@@ -18,7 +18,6 @@ run_as_root pacman -S --needed \
     diffutils \
     dnsmasq \
     findutils \
-    firewalld \
     gawk \
     gzip \
     grep \
