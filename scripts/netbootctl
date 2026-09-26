@@ -253,7 +253,10 @@ main() {
 		stop_one dnsmasq
 		start_one dnsmasq "$NETBOOT_DNSMASQ_EXECUTABLE" "$GENERATED/dnsmasq.conf" "$NETBOOT_DNSMASQ_LOG"
 		;;
-	status) status_services ;;
+	status)
+		need_root status
+		status_services
+		;;
 	logs) logs ;;
 	tui) exec python3 "$SCRIPT_DIR/netboot-tui.py" "$@" ;;
 	help | -h | --help) usage ;;
