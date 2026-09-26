@@ -2,12 +2,15 @@ SHELL := /bin/bash
 
 .DEFAULT_GOAL := help
 .NOTPARALLEL:
-.PHONY: help preflight packages bootstrap links firewall firewall-rules firewall-enable \
+.PHONY: help network preflight packages bootstrap links firewall firewall-rules firewall-enable \
 	firewall-remove services render validate setup setup-with-firewall start stop \
 	restart reload status logs tui check
 
 help: ## Show the available project commands
 	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_-]+:.*## / {printf "  %-20s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+
+network: ## Apply the configured static network address using the host manager
+	./scripts/setup/05-configure-network.sh
 
 preflight: ## Check the host, address, configuration, and payload links
 	./scripts/setup/00-preflight.sh
@@ -79,7 +82,7 @@ tui: ## Open the passive netboot visibility TUI
 
 check: ## Run developer shell, formatting, migration, and regression checks
 	shellcheck $$(rg --files -g '*.sh' scripts packages | grep -v '^archive/' | sort)
-	shfmt -d scripts/netbootctl scripts/apply-netboot-config.sh scripts/setup/00-preflight.sh scripts/setup/40-install-enable-services.sh scripts/setup/90-validate-host.sh
+	shfmt -d scripts/netbootctl scripts/apply-netboot-config.sh scripts/setup/00-preflight.sh scripts/setup/05-configure-network.sh scripts/setup/40-install-enable-services.sh scripts/setup/90-validate-host.sh
 	python3 -m unittest discover -s tests -p 'test_*.py'
 	python3 -m unittest test_netbootctl.py test_almalinux_boot.py
 	@if [[ -d tests/bats ]]; then bats tests/bats; fi

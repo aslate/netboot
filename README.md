@@ -76,6 +76,7 @@ network, package, service, and firewall procedure. The common entry points are:
 
 ```bash
 make preflight
+make network              # apply the static address from config/netboot.env
 make setup                 # leaves firewall management to the host
 make firewall-rules        # detect UFW/firewalld and ask before adding rules
 make links                 # recreate HTTP compatibility symlinks

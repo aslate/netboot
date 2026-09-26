@@ -42,7 +42,7 @@ done
 
 ip -4 address show dev "$NETBOOT_INTERFACE" | grep -Fq "inet $NETBOOT_SERVER_IP/" || {
 	echo "$NETBOOT_INTERFACE does not currently own $NETBOOT_SERVER_IP." >&2
-	echo "Configure a persistent static address before enabling netboot services." >&2
+	echo "Run 'make network' to apply the address from config/netboot.env before enabling netboot services." >&2
 	exit 1
 }
 

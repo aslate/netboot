@@ -43,12 +43,17 @@ real file or directory at a managed link path.
 
 ## 2. Configure the network
 
-Give `eno1` the persistent static address `192.168.1.2/24` using the host's
-normal network manager. Confirm it before installing services:
+The address is recorded in `config/netboot.env`. Apply it with the explicit
+network target, which uses NetworkManager or systemd-networkd when available:
 
 ```bash
+make network
 ip -4 address show dev eno1
 ```
+
+If neither persistent manager is installed, the target applies a temporary
+address with `ip` and says so; install/configure the host's preferred network
+manager before rebooting.
 
 If the new site differs, edit `config/netboot.env` and adapt the static
 configuration before setup. This command locates
