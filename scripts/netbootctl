@@ -108,8 +108,8 @@ start_one() {
 	fi
 	rm -f "$(record_path "$name")"
 	case "$name" in
-	caddy) setsid "$exe" run --config "$config" --adapter caddyfile >>"$log" 2>&1 & ;;
-	dnsmasq) setsid "$exe" --keep-in-foreground --conf-file="$config" --log-facility=- >>"$log" 2>&1 & ;;
+	caddy) nohup setsid "$exe" run --config "$config" --adapter caddyfile </dev/null >>"$log" 2>&1 & ;;
+	dnsmasq) nohup setsid "$exe" --keep-in-foreground --conf-file="$config" --log-facility=- </dev/null >>"$log" 2>&1 & ;;
 	esac
 	pid=$!
 	for _ in {1..20}; do
