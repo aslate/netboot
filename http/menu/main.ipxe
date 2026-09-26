@@ -16,7 +16,7 @@ item supergrub Super Grub2 Disk 2.06s4
 item almalinux AlmaLinux 10.2 Installer
 item shell  iPXE shell
 item reboot Reboot
-choose --timeout 10000 --default fedora-sway selected || goto shell
+choose --timeout 10000 --default proxmox selected || goto shell
 goto ${selected}
 
 :clonezilla

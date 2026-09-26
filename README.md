@@ -36,8 +36,8 @@ other DHCP server on that LAN before using it.
 - Fedora Sway Live 44 (prepared; client boot pending)
 - Fedora KDE Installer 44
 
-The menu is at `http://192.168.1.2/menu/main.ipxe` and defaults to Fedora Sway
-Live 44 after a ten-second timeout for current testing. The other targets remain
+The menu is at `http://192.168.1.2/menu/main.ipxe` and defaults to Proxmox VE
+after a ten-second timeout for current testing. The other targets remain
 available, along with the parked AlmaLinux diagnostic entry, an iPXE shell, and
 reboot.
 
