@@ -20,6 +20,7 @@ stop.sh
 dnsmasq.conf
 dnsmasq.leases
 dnsmasq.log
+.runtime/
 
 # Project-owned service configuration is tracked even though legacy runtime
 # files elsewhere in the tree remain ignored.

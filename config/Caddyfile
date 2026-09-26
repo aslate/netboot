@@ -1,5 +1,5 @@
-:80 {
-    root * /srv/netboot/http
+:${NETBOOT_HTTP_PORT} {
+    root * ${NETBOOT_HTTP_ROOT}
     file_server browse
     log {
         output stdout

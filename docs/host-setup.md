@@ -6,11 +6,9 @@ site-specific: it expects `/srv/netboot`, interface `eno1`, server address
 `192.168.1.2/24`, and LAN `192.168.1.0/24`.
 
 `config/netboot.env` is the centralized record of host identity, service
-ports, roots, units, bootstraps, and installed configuration paths. Shell setup
-and preparation scripts read its host values. It deliberately does **not**
-template configuration: dnsmasq, Caddy, iPXE, GRUB, and Python files still
-contain static values and must be updated separately if the host address,
-interface, or project location changes.
+ports, roots, standalone runtime paths, bootstraps, and configuration sources.
+The repository-local renderer expands explicit placeholders without executing
+template contents or writing service configuration into `/etc`.
 
 The existing router must remain the authoritative DHCP server. dnsmasq runs
 only as a proxy-DHCP/TFTP service and must not be given an ordinary address
@@ -65,7 +63,7 @@ variables are useful for checks but do not rewrite those configuration files.
 `make packages` installs these official-repository packages with
 `pacman -S --needed`: `bash`, `caddy`, `coreutils`, `curl`, `diffutils`,
 `dnsmasq`, `findutils`, `firewalld`, `gawk`, `gzip`, `grep`, `iproute2`,
-`ipxe`, `libarchive`, `python`, `sed`, `sudo`, `systemd`, `unzip`, `xorriso`,
+`ipxe`, `libarchive`, `procps-ng`, `python`, `sed`, `sudo`, `systemd`, `unzip`, `xorriso`,
 and `zstd`. They cover the services, proxy-DHCP/TFTP bootstrap, validation,
 TUI, and every included image-preparation recipe. `ipxe` supplies the UEFI
 bootstrap at `/usr/share/ipxe/x86_64/ipxe.efi`; the repository's tracked
@@ -101,20 +99,15 @@ restricted to source `192.168.1.0/24` and permit DHCP/proxy-DHCP UDP 67, TFTP
 UDP 69, HTTP TCP 80, and PXE proxy UDP 4011. Remove those rules later with
 `make firewall-remove`.
 
-The service installer makes one-time backups, when applicable, at
-`/etc/dnsmasq.d/netboot.conf.before-netboot` and
-`/etc/caddy/Caddyfile.before-netboot`. It creates the required Arch service
-configuration directories. On Arch/CachyOS it also installs the project-owned
-`/etc/systemd/system/dnsmasq.service.d/netboot.conf` drop-in, because the
-vendor dnsmasq unit otherwise reads only `/etc/dnsmasq.conf`; this ensures the
-installed proxy-DHCP/TFTP fragment is the configuration the service starts.
-It then enables Caddy and dnsmasq and installs the project-owned
-configurations.
+The service step renders configuration into `.runtime/generated/` and starts
+Caddy and dnsmasq directly. No `/etc` service files, systemd units, or system
+journal configuration are installed. The processes still require elevated
+access because PXE/TFTP/HTTP use privileged ports.
 
 ## 4. Validate and operate
 
-Check the installed configuration, enabled/active units, bootstrap, and local
-menu response:
+Check rendered configuration, verified daemon identity, listeners, bootstrap,
+and local menu response:
 
 ```bash
 make validate

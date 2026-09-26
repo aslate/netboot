@@ -26,6 +26,7 @@ run_as_root pacman -S --needed \
     ipxe \
     libarchive \
     python \
+    procps-ng \
     sed \
     sudo \
     systemd \

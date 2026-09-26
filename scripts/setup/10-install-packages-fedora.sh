@@ -12,7 +12,7 @@ require_command dnf
 packages=(
     bash bsdtar caddy coreutils curl diffutils dnsmasq findutils firewalld
     gawk gzip grep iproute ipxe-bootimgs-x86 libselinux-utils
-    policycoreutils policycoreutils-python-utils python3 sed sudo systemd
+    policycoreutils policycoreutils-python-utils procps-ng python3 sed sudo systemd
     unzip xorriso zstd
 )
 

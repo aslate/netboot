@@ -76,6 +76,7 @@ make setup                 # leaves firewall management to the host
 make setup-with-firewall   # explicitly enables and configures firewalld
 make links                 # recreate HTTP compatibility symlinks
 make validate
+make check                 # developer shell/tests/migration checks
 ```
 
 Run `make help` for all setup and day-to-day operations. A Git clone does not
@@ -91,13 +92,15 @@ interactive menu, or use a subcommand for scripts and direct operation:
 ./scripts/netbootctl
 ./scripts/netbootctl start
 ./scripts/netbootctl stop
+./scripts/netbootctl status
 ./scripts/netbootctl reload
 ./scripts/netbootctl logs
 ./scripts/netbootctl tui
 ```
 
-The CLI requests `sudo` only for the selected privileged operation. `logs`
-shows the latest 100 dnsmasq and Caddy journal entries and follows new output;
+The CLI requests `sudo` only for start/stop/reload operations. Service
+configuration, generated files, PID records, and logs remain under the
+repository's `.runtime/` directory. `logs` follows those local log files;
 press Ctrl-C to stop. Options after `tui` are passed to the monitor, for
 example `./scripts/netbootctl tui --interface eno1 --history 150`.
 
@@ -110,8 +113,8 @@ sudo ./scripts/apply-netboot-config.sh
 Validate services and follow the request sequence directly with:
 
 ```bash
-sudo systemctl is-active dnsmasq caddy
-sudo journalctl -f -u dnsmasq.service -u caddy.service -o short-iso
+./scripts/netbootctl status
+./scripts/netbootctl logs
 ```
 
 Keep TFTP limited to the small bootstrap wherever the selected boot technology
@@ -127,7 +130,7 @@ host:
 ./scripts/netbootctl tui
 ```
 
-It watches `eno1`, the existing dnsmasq and Caddy journals, and displays PXE
+It watches `eno1`, the repository-local dnsmasq and Caddy logs, and displays PXE
 sessions, TFTP/HTTP transfers, best-effort byte progress, completed-file ticks,
 and a rolling transfer log. Press `q` to exit. The monitor is observational and
 does not change the dnsmasq or Caddy configuration.

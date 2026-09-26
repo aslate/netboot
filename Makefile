@@ -3,8 +3,8 @@ SHELL := /bin/bash
 .DEFAULT_GOAL := help
 .NOTPARALLEL:
 .PHONY: help preflight packages bootstrap links firewall firewall-enable \
-	firewall-remove services validate setup setup-with-firewall start stop \
-	reload logs tui
+	firewall-remove services render validate setup setup-with-firewall start stop \
+	restart reload status logs tui check
 
 help: ## Show the available project commands
 	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_-]+:.*## / {printf "  %-20s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -30,10 +30,13 @@ firewall-enable: ## Enable firewalld and add netboot rules (use locally)
 firewall-remove: ## Remove the project netboot firewall rules
 	./scripts/setup/30-configure-firewalld.sh --remove
 
-services: ## Install configuration and enable/start Caddy and dnsmasq
-	./scripts/setup/40-install-enable-services.sh
+render: ## Render repository-local service configuration
+	./scripts/netbootctl render
 
-validate: ## Validate installed configuration, services, and local HTTP
+services: ## Render and start standalone Caddy and dnsmasq
+	./scripts/netbootctl start
+
+validate: ## Validate rendered configuration, processes, listeners, and HTTP/PXE state
 	./scripts/setup/90-validate-host.sh
 
 setup: ## Install this host without enabling or changing its firewall
@@ -57,11 +60,26 @@ start: ## Start Caddy and dnsmasq
 stop: ## Stop dnsmasq and Caddy
 	./scripts/netbootctl stop
 
-reload: ## Reinstall, validate, and activate service configuration
+restart: ## Restart standalone Caddy and dnsmasq
+	./scripts/netbootctl restart
+
+reload: ## Render, validate, and activate service configuration
 	./scripts/netbootctl reload
 
-logs: ## Show and follow Caddy and dnsmasq logs
+status: ## Show verified standalone daemon state
+	./scripts/netbootctl status
+
+logs: ## Show and follow repository-local Caddy and dnsmasq logs
 	./scripts/netbootctl logs
 
 tui: ## Open the passive netboot visibility TUI
 	./scripts/netbootctl tui
+
+check: ## Run developer shell, formatting, migration, and regression checks
+	shellcheck $$(rg --files -g '*.sh' scripts packages | grep -v '^archive/' | sort)
+	shfmt -d scripts/netbootctl scripts/apply-netboot-config.sh scripts/setup/00-preflight.sh scripts/setup/40-install-enable-services.sh scripts/setup/90-validate-host.sh
+	python3 -m unittest discover -s tests -p 'test_*.py'
+	python3 -m unittest test_netbootctl.py test_almalinux_boot.py
+	@if [[ -d tests/bats ]]; then bats tests/bats; fi
+	@if rg -n '(/etc/(dnsmasq|caddy)|systemctl (start|stop|reload|restart|is-active)|journalctl)' scripts/netbootctl scripts/enable-caddy-access-log.sh scripts/setup/40-install-enable-services.sh scripts/setup/90-validate-host.sh; then \
+		echo 'standalone migration assertion failed' >&2; exit 1; fi

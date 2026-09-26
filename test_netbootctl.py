@@ -8,6 +8,7 @@ from pathlib import Path
 
 
 SOURCE = Path(__file__).parent / "scripts" / "netbootctl"
+RENDERER = Path(__file__).parent / "scripts" / "render-netboot-config.py"
 
 
 class NetbootCtlTests(unittest.TestCase):
@@ -15,114 +16,63 @@ class NetbootCtlTests(unittest.TestCase):
         self.temporary = tempfile.TemporaryDirectory()
         self.root = Path(self.temporary.name)
         self.scripts = self.root / "scripts"
-        self.bin = self.root / "bin"
+        self.config = self.root / "config"
         self.scripts.mkdir()
+        self.config.mkdir()
+        self.bin = self.root / "bin"
         self.bin.mkdir()
-        self.log = self.root / "commands.log"
         self.cli = self.scripts / "netbootctl"
         shutil.copy2(SOURCE, self.cli)
-        self.write_executable(
-            self.bin / "sudo",
-            '#!/usr/bin/env bash\nprintf "sudo %s\\n" "$*" >> "$NETBOOTCTL_TEST_LOG"\nexec "$@"\n',
+        shutil.copy2(RENDERER, self.scripts / "render-netboot-config.py")
+        runtime = self.root / ".runtime"
+        (self.config / "netboot.env").write_text(
+            f"NETBOOT_PROJECT_ROOT={self.root}\n"
+            "NETBOOT_INTERFACE=eth99\nNETBOOT_SERVER_IP=10.8.0.2\n"
+            "NETBOOT_SUBNET=10.8.0.0/24\nNETBOOT_DHCP_PROXY_RANGE=10.8.0.0\n"
+            "NETBOOT_DNSMASQ_PORT=0\nNETBOOT_HTTP_PORT=8080\n"
+            f"NETBOOT_HTTP_ROOT={self.root / 'http'}\nNETBOOT_TFTP_ROOT={self.root / 'tftp'}\n"
+            f"NETBOOT_RUNTIME_ROOT={runtime}\nNETBOOT_GENERATED_ROOT={runtime / 'generated'}\n"
+            f"NETBOOT_LOG_ROOT={runtime / 'logs'}\nNETBOOT_UEFI_BOOTSTRAP=ipxe.efi\n"
+            "NETBOOT_BIOS_BOOTSTRAP=undionly.kpxe\n"
+            "NETBOOT_IPXE_MENU_URL=http://10.8.0.2/menu/main.ipxe\n"
+            f"NETBOOT_DNSMASQ_CONFIG_SOURCE={self.config / 'dnsmasq.conf'}\n"
+            f"NETBOOT_CADDY_CONFIG_SOURCE={self.config / 'Caddyfile'}\n"
+            f"NETBOOT_DNSMASQ_CONFIG_RUNTIME={runtime / 'generated/dnsmasq.conf'}\n"
+            f"NETBOOT_CADDY_CONFIG_RUNTIME={runtime / 'generated/Caddyfile'}\n"
+            f"NETBOOT_DNSMASQ_PIDFILE={runtime / 'dnsmasq.pid'}\nNETBOOT_CADDY_PIDFILE={runtime / 'caddy.pid'}\n"
+            f"NETBOOT_DNSMASQ_LOG={runtime / 'logs/dnsmasq.log'}\nNETBOOT_CADDY_LOG={runtime / 'logs/caddy.log'}\n"
+            "NETBOOT_DNSMASQ_EXECUTABLE=dnsmasq\nNETBOOT_CADDY_EXECUTABLE=caddy\n"
         )
-        self.write_executable(
-            self.bin / "systemctl",
-            '#!/usr/bin/env bash\nprintf "systemctl %s\\n" "$*" >> "$NETBOOTCTL_TEST_LOG"\n'
-            'if [[ $1 == is-active ]]; then echo active; fi\n',
-        )
-        self.write_executable(
-            self.bin / "journalctl",
-            '#!/usr/bin/env bash\nprintf "journalctl %s\\n" "$*" >> "$NETBOOTCTL_TEST_LOG"\n',
-        )
-        self.write_executable(
-            self.scripts / "apply-netboot-config.sh",
-            '#!/usr/bin/env bash\necho apply >> "$NETBOOTCTL_TEST_LOG"\n',
-        )
-        self.write_executable(
-            self.scripts / "netboot-tui.py",
-            '#!/usr/bin/env bash\nprintf "tui %s\\n" "$*" >> "$NETBOOTCTL_TEST_LOG"\n',
-        )
+        (self.config / "dnsmasq.conf").write_text("interface=${NETBOOT_INTERFACE}\n")
+        (self.config / "Caddyfile").write_text(":${NETBOOT_HTTP_PORT} { root * ${NETBOOT_HTTP_ROOT} }\n")
         self.environment = os.environ.copy()
         self.environment["PATH"] = f"{self.bin}:{self.environment['PATH']}"
-        self.environment["NETBOOTCTL_TEST_LOG"] = str(self.log)
 
     def tearDown(self):
         self.temporary.cleanup()
 
-    @staticmethod
-    def write_executable(path, content):
-        path.write_text(content, encoding="utf-8")
-        path.chmod(0o755)
-
     def run_cli(self, *arguments):
-        return subprocess.run(
-            [str(self.cli), *arguments],
-            env=self.environment,
-            stdin=subprocess.DEVNULL,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-
-    def commands(self, prefix):
-        if not self.log.exists():
-            return []
-        return [line for line in self.log.read_text(encoding="utf-8").splitlines() if line.startswith(prefix)]
-
-    def test_start_orders_caddy_before_dnsmasq_and_reports_state(self):
-        result = self.run_cli("start")
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(
-            self.commands("systemctl"),
-            [
-                "systemctl start caddy.service",
-                "systemctl start dnsmasq.service",
-                "systemctl is-active caddy.service",
-                "systemctl is-active dnsmasq.service",
-            ],
-        )
-        self.assertIn("caddy.service", result.stdout)
-        self.assertIn("dnsmasq.service", result.stdout)
-
-    def test_stop_orders_dnsmasq_before_caddy(self):
-        result = self.run_cli("stop")
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(
-            self.commands("systemctl"),
-            ["systemctl stop dnsmasq.service", "systemctl stop caddy.service"],
-        )
-
-    def test_reload_delegates_to_apply_script(self):
-        result = self.run_cli("reload")
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(self.commands("apply"), ["apply"])
-
-    def test_logs_follow_both_units(self):
-        result = self.run_cli("logs")
-        self.assertEqual(result.returncode, 0, result.stderr)
-        command = self.commands("journalctl")
-        self.assertEqual(len(command), 1)
-        self.assertIn("-n 100 -f", command[0])
-        self.assertIn("-u dnsmasq.service", command[0])
-        self.assertIn("-u caddy.service", command[0])
-
-    def test_tui_forwards_options(self):
-        result = self.run_cli("tui", "--interface", "eth9", "--history", "25")
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(self.commands("tui"), ["tui --interface eth9 --history 25"])
+        return subprocess.run([str(self.cli), *arguments], env=self.environment, capture_output=True, text=True, check=False)
 
     def test_help_and_invalid_invocations(self):
-        help_result = self.run_cli("--help")
-        self.assertEqual(help_result.returncode, 0)
-        self.assertIn("start         Start Caddy and dnsmasq", help_result.stdout)
-
+        result = self.run_cli("help")
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("standalone daemons", result.stdout)
         unknown = self.run_cli("unknown")
         self.assertEqual(unknown.returncode, 2)
-        self.assertIn("unknown command", unknown.stderr)
 
-        no_command = self.run_cli()
-        self.assertEqual(no_command.returncode, 2)
-        self.assertIn("command is required", no_command.stderr)
+    def test_render_uses_central_configuration(self):
+        result = self.run_cli("render")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        generated = self.root / ".runtime/generated"
+        self.assertIn("interface=eth99", (generated / "dnsmasq.conf").read_text())
+        self.assertIn(":8080", (generated / "Caddyfile").read_text())
+
+    def test_status_rejects_missing_records(self):
+        result = self.run_cli("status")
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("caddy    stopped", result.stdout)
+        self.assertIn("dnsmasq  stopped", result.stdout)
 
 
 if __name__ == "__main__":

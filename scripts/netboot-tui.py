@@ -3,7 +3,7 @@
 
 The monitor does not alter dnsmasq or Caddy.  It observes DHCP, TFTP, and
 plaintext HTTP traffic on the selected interface, and enriches that stream
-with the existing service journals.  Progress is therefore best-effort: the
+with the repository-local service logs. Progress is therefore best-effort: the
 tool can only count bytes visible on the wire.
 """
 
@@ -15,7 +15,6 @@ import json
 import re
 import socket
 import struct
-import subprocess
 import threading
 import time
 from collections import OrderedDict, deque
@@ -25,11 +24,36 @@ from pathlib import Path
 from typing import Any, Optional
 
 
-DEFAULT_INTERFACE = "eno1"
+DEFAULT_INTERFACE = ""
 DEFAULT_HTTP_PORT = 80
-DEFAULT_SERVER_IP = "192.168.1.2"
-DEFAULT_TFTP_ROOT = Path("/srv/netboot/tftp")
-DEFAULT_HTTP_ROOT = Path("/srv/netboot/http")
+DEFAULT_SERVER_IP = "0.0.0.0"
+DEFAULT_TFTP_ROOT = Path("tftp")
+DEFAULT_HTTP_ROOT = Path("http")
+
+
+def load_netboot_env() -> dict[str, str]:
+    """Read the repository env file as data, never as Python or shell code."""
+    path = Path(__file__).resolve().parents[1] / "config" / "netboot.env"
+    values: dict[str, str] = {}
+    try:
+        for raw in path.read_text(encoding="utf-8").splitlines():
+            line = raw.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            if key.isidentifier() and key.isupper() and not any(token in value for token in ("$", "`", "(", ")")):
+                values[key] = value
+    except OSError:
+        pass
+    return values
+
+
+NETBOOT_ENV = load_netboot_env()
+DEFAULT_INTERFACE = NETBOOT_ENV.get("NETBOOT_INTERFACE", DEFAULT_INTERFACE)
+DEFAULT_SERVER_IP = NETBOOT_ENV.get("NETBOOT_SERVER_IP", DEFAULT_SERVER_IP)
+DEFAULT_HTTP_PORT = int(NETBOOT_ENV.get("NETBOOT_HTTP_PORT", DEFAULT_HTTP_PORT))
+DEFAULT_TFTP_ROOT = Path(NETBOOT_ENV.get("NETBOOT_TFTP_ROOT", str(DEFAULT_TFTP_ROOT)))
+DEFAULT_HTTP_ROOT = Path(NETBOOT_ENV.get("NETBOOT_HTTP_ROOT", str(DEFAULT_HTTP_ROOT)))
 
 
 def now() -> float:
@@ -644,24 +668,21 @@ def packet_capture(interface: str, observer: PassiveObserver, stop: threading.Ev
                 observer.feed(packet)
 
 
-def journal_tail(service: str, state: MonitorState, stop: threading.Event) -> None:
-    command = ["journalctl", "-f", "-n", "0", "-u", service, "-o", "cat", "--no-pager"]
+def log_tail(label: str, path: Path, state: MonitorState, stop: threading.Event) -> None:
     try:
-        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, bufsize=1)
+        handle = path.open("r", encoding="utf-8", errors="replace")
+        handle.seek(0, 2)
     except OSError as error:
-        state.emit(Event("warning", message=f"{service} journal unavailable: {error}"))
+        state.emit(Event("warning", message=f"{label} log unavailable: {error}"))
         return
     try:
-        assert process.stdout is not None
         while not stop.is_set():
-            line = process.stdout.readline()
+            line = handle.readline()
             if not line:
-                if process.poll() is not None:
-                    break
                 time.sleep(0.1)
                 continue
             line = line.strip()
-            if service.startswith("caddy"):
+            if label == "caddy":
                 record = parse_caddy_line(line)
                 if record and record.get("path"):
                     state.complete_by_path(record.get("ip"), record["path"], int(record.get("status") or 200), record.get("size"))
@@ -670,11 +691,7 @@ def journal_tail(service: str, state: MonitorState, stop: threading.Event) -> No
                 if record:
                     state.emit(Event("session", data={"ip": record.get("ip"), "mac": record.get("mac")}, message=record["message"]))
     finally:
-        process.terminate()
-        try:
-            process.wait(timeout=1)
-        except subprocess.TimeoutExpired:
-            process.kill()
+        handle.close()
 
 
 def draw_bar(width: int, progress: Optional[float], active: bool) -> str:
@@ -762,8 +779,8 @@ def main(argv: Optional[list[str]] = None) -> int:
     stop = threading.Event()
     threads = [
         threading.Thread(target=packet_capture, args=(args.interface, observer, stop, state.emit), daemon=True),
-        threading.Thread(target=journal_tail, args=("dnsmasq.service", state, stop), daemon=True),
-        threading.Thread(target=journal_tail, args=("caddy.service", state, stop), daemon=True),
+        threading.Thread(target=log_tail, args=("dnsmasq", Path(NETBOOT_ENV.get("NETBOOT_DNSMASQ_LOG", ".runtime/logs/dnsmasq.log")), state, stop), daemon=True),
+        threading.Thread(target=log_tail, args=("caddy", Path(NETBOOT_ENV.get("NETBOOT_CADDY_LOG", ".runtime/logs/caddy.log")), state, stop), daemon=True),
     ]
     for thread in threads:
         thread.start()

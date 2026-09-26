@@ -1,175 +1,242 @@
 #!/usr/bin/env bash
-set -uo pipefail
+set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-APPLY_CONFIG="$SCRIPT_DIR/apply-netboot-config.sh"
-TUI="$SCRIPT_DIR/netboot-tui.py"
-SERVICES=(caddy.service dnsmasq.service)
+ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd)"
+# shellcheck disable=SC1091
+source "$ROOT/config/netboot.env"
+RENDERER="$SCRIPT_DIR/render-netboot-config.py"
+RUNTIME="$NETBOOT_RUNTIME_ROOT"
+GENERATED="$NETBOOT_GENERATED_ROOT"
+LOGS="$NETBOOT_LOG_ROOT"
+STATE="$RUNTIME/state"
 
 usage() {
-    cat <<'EOF'
+	cat <<'EOF'
 Usage: netbootctl <command>
-       netbootctl
 
 Commands:
-  start         Start Caddy and dnsmasq
-  stop          Stop dnsmasq and Caddy
-  reload        Install, validate, and activate the project configuration
-  logs          Show the latest 100 service log entries and follow them
+  render        Render and validate repository-local service configuration
+  start         Start Caddy and dnsmasq as standalone daemons
+  stop          Stop dnsmasq and Caddy safely
+  restart       Stop and start both daemons
+  reload        Render, validate, and reload/restart configuration
+  status        Show verified daemon and listener state
+  logs          Follow repository-local service logs
   tui [options] Launch the netboot visibility TUI
   help          Show this help
-
-Running without a command opens an interactive menu when attached to a terminal.
 EOF
 }
 
-run_root() {
-    if (( EUID == 0 )); then
-        "$@"
-    else
-        sudo "$@"
-    fi
+need_root() {
+	if ((EUID != 0)); then
+		exec sudo "$0" "$@"
+	fi
 }
 
-require_no_args() {
-    local command_name=$1
-    shift
-    if (( $# != 0 )); then
-        echo "netbootctl: '$command_name' does not accept arguments" >&2
-        usage >&2
-        return 2
-    fi
+require_command() { command -v "$1" >/dev/null 2>&1 || {
+	echo "Missing required command: $1" >&2
+	return 1
+}; }
+prepare_runtime() { install -d -m 0755 "$RUNTIME" "$GENERATED" "$LOGS" "$STATE"; }
+render_config() {
+	require_command python3
+	python3 "$RENDERER"
+}
+record_path() { printf '%s/%s.record\n' "$STATE" "$1"; }
+proc_cmdline() { tr '\0' ' ' <"/proc/$1/cmdline" 2>/dev/null | sed 's/[[:space:]]*$//'; }
+proc_exe() { readlink -f "/proc/$1/exe" 2>/dev/null || true; }
+proc_pgid() { ps -o pgid= -p "$1" 2>/dev/null | tr -d ' '; }
+
+write_record() {
+	local name=$1 pid=$2 expected_exe=$3 config=$4 record tmp cmd pgid
+	record=$(record_path "$name")
+	cmd=$(proc_cmdline "$pid")
+	pgid=$(proc_pgid "$pid")
+	[[ -n "$cmd" && -n "$pgid" ]] || {
+		echo "Unable to inspect $name daemon $pid" >&2
+		return 1
+	}
+	[[ "$(proc_exe "$pid")" == "$(readlink -f "$expected_exe")" ]] || {
+		echo "$name did not exec expected binary" >&2
+		return 1
+	}
+	grep -Fq -- "$config" <<<"$cmd" || {
+		echo "$name invocation does not reference expected config" >&2
+		return 1
+	}
+	tmp="$record.tmp.$$"
+	{
+		printf 'pid=%s\n' "$pid"
+		printf 'pgid=%s\n' "$pgid"
+		printf 'exe=%s\n' "$(proc_exe "$pid")"
+		printf 'config=%s\n' "$config"
+		printf 'cmdline=%s\n' "$cmd"
+	} >"$tmp"
+	mv -f "$tmp" "$record"
 }
 
-show_states() {
-    local service state result=0
-    for service in "${SERVICES[@]}"; do
-        if state="$(run_root systemctl is-active "$service" 2>/dev/null)"; then
-            printf '%-16s %s\n' "$service" "$state"
-        else
-            state=${state:-unknown}
-            printf '%-16s %s\n' "$service" "$state"
-            result=1
-        fi
-    done
-    return "$result"
+read_record() {
+	local name=$1 record key value
+	record=$(record_path "$name")
+	[[ -r "$record" ]] || return 1
+	unset pid pgid exe config cmdline
+	while IFS='=' read -r key value; do
+		case "$key" in pid | pgid | exe | config | cmdline) printf -v "$key" '%s' "$value" ;; esac
+	done <"$record"
+	[[ "$pid" =~ ^[0-9]+$ && "$pgid" =~ ^[0-9]+$ && -n "$exe" && -n "$config" && -n "$cmdline" ]]
+}
+
+verify_record() {
+	local name=$1
+	read_record "$name" || return 1
+	[[ -d "/proc/$pid" && "$(proc_pgid "$pid")" == "$pgid" ]] || return 1
+	[[ "$(proc_exe "$pid")" == "$exe" && "$(proc_cmdline "$pid")" == "$cmdline" ]] || return 1
+	grep -Fq -- "$config" <<<"$cmdline"
+}
+
+start_one() {
+	local name=$1 exe=$2 config=$3 log=$4 pid
+	exe=$(command -v "$exe") || {
+		echo "Missing executable for $name: $2" >&2
+		return 1
+	}
+	if [[ -e "$(record_path "$name")" ]] && verify_record "$name"; then
+		echo "$name is already running (pid $pid)"
+		return 0
+	fi
+	rm -f "$(record_path "$name")"
+	case "$name" in
+	caddy) setsid "$exe" run --config "$config" --adapter caddyfile >>"$log" 2>&1 & ;;
+	dnsmasq) setsid "$exe" --keep-in-foreground --conf-file="$config" --log-facility=- >>"$log" 2>&1 & ;;
+	esac
+	pid=$!
+	for _ in {1..20}; do
+		if [[ -d "/proc/$pid" ]] && [[ "$(proc_exe "$pid")" == "$(readlink -f "$exe")" ]]; then break; fi
+		sleep 0.05
+	done
+	write_record "$name" "$pid" "$exe" "$config" || {
+		local failed_pgid
+		failed_pgid=$(proc_pgid "$pid")
+		if [[ "$failed_pgid" =~ ^[0-9]+$ && "$failed_pgid" != 0 ]]; then
+			kill -TERM -- "-$failed_pgid" 2>/dev/null || true
+		fi
+		return 1
+	}
+}
+
+stop_one() {
+	local name=$1
+	if ! verify_record "$name"; then
+		rm -f "$(record_path "$name")"
+		echo "$name is not running (or its record is stale)"
+		return 0
+	fi
+	local target_pid=$pid target_pgid=$pgid
+	kill -TERM -- "-$target_pgid"
+	for _ in {1..40}; do
+		kill -0 "$target_pid" 2>/dev/null || break
+		sleep 0.05
+	done
+	if kill -0 "$target_pid" 2>/dev/null; then
+		verify_record "$name" || {
+			echo "Refusing escalation: $name identity changed" >&2
+			return 1
+		}
+		kill -KILL -- "-$target_pgid"
+	fi
+	rm -f "$(record_path "$name")"
+}
+
+validate_runtime() {
+	require_command caddy
+	require_command dnsmasq
+	require_command curl
+	[[ -s "$GENERATED/dnsmasq.conf" && -s "$GENERATED/Caddyfile" ]] || {
+		echo "Run netbootctl render first." >&2
+		return 1
+	}
+	dnsmasq --test --conf-file="$GENERATED/dnsmasq.conf"
+	caddy validate --config "$GENERATED/Caddyfile" --adapter caddyfile
+}
+
+status_services() {
+	local name state
+	for name in caddy dnsmasq; do
+		if verify_record "$name"; then state="running pid=$pid pgid=$pgid"; else state=stopped; fi
+		printf '%-8s %s\n' "$name" "$state"
+	done
 }
 
 start_services() {
-    echo "Starting Caddy..."
-    run_root systemctl start caddy.service || return
-    echo "Starting dnsmasq..."
-    run_root systemctl start dnsmasq.service || return
-    show_states
+	need_root start
+	prepare_runtime
+	render_config
+	validate_runtime
+	start_one caddy "$NETBOOT_CADDY_EXECUTABLE" "$GENERATED/Caddyfile" "$NETBOOT_CADDY_LOG"
+	start_one dnsmasq "$NETBOOT_DNSMASQ_EXECUTABLE" "$GENERATED/dnsmasq.conf" "$NETBOOT_DNSMASQ_LOG"
+	status_services
 }
 
 stop_services() {
-    echo "Stopping dnsmasq..."
-    run_root systemctl stop dnsmasq.service || return
-    echo "Stopping Caddy..."
-    run_root systemctl stop caddy.service || return
-    echo "Netboot services stopped."
+	need_root stop
+	stop_one dnsmasq
+	stop_one caddy
 }
-
-reload_config() {
-    run_root "$APPLY_CONFIG"
-}
-
-show_logs() {
-    run_root journalctl \
-        -n 100 -f \
-        -u dnsmasq.service \
-        -u caddy.service \
-        -o short-iso \
-        --no-pager
-}
-
-load_tui() {
-    run_root "$TUI" "$@"
-}
-
-run_action() {
-    local action=$1
-    shift
-    case "$action" in
-        start)
-            require_no_args start "$@" || return
-            start_services
-            ;;
-        stop)
-            require_no_args stop "$@" || return
-            stop_services
-            ;;
-        reload)
-            require_no_args reload "$@" || return
-            reload_config
-            ;;
-        logs)
-            require_no_args logs "$@" || return
-            show_logs
-            ;;
-        tui)
-            load_tui "$@"
-            ;;
-        help|-h|--help)
-            require_no_args help "$@" || return
-            usage
-            ;;
-        *)
-            echo "netbootctl: unknown command '$action'" >&2
-            usage >&2
-            return 2
-            ;;
-    esac
-}
-
-interactive_menu() {
-    local action choice status
-    while true; do
-        printf '\nNetboot server\n'
-        printf '  1) Start services\n'
-        printf '  2) Stop services\n'
-        printf '  3) Reload configuration\n'
-        printf '  4) Show logs\n'
-        printf '  5) Load TUI\n'
-        printf '  6) Quit\n'
-        read -r -p 'Select an action [1-6]: ' choice || return 0
-        case "$choice" in
-            1) action=start ;;
-            2) action=stop ;;
-            3) action=reload ;;
-            4) action=logs ;;
-            5) action=tui ;;
-            6|q|Q) return 0 ;;
-            *)
-                echo "Invalid selection: $choice" >&2
-                continue
-                ;;
-        esac
-        if run_action "$action"; then
-            status=0
-        else
-            status=$?
-            if (( status != 130 )); then
-                echo "Action '$action' failed with status $status." >&2
-            fi
-        fi
-    done
-}
+logs() { tail -n 100 -F "$NETBOOT_CADDY_LOG" "$NETBOOT_DNSMASQ_LOG"; }
 
 main() {
-    if (( $# == 0 )); then
-        if [[ ! -t 0 || ! -t 1 ]]; then
-            echo "netbootctl: a command is required when not running interactively" >&2
-            usage >&2
-            return 2
-        fi
-        interactive_menu
-        return
-    fi
-    local action=$1
-    shift
-    run_action "$action" "$@"
+	local action=${1:-help}
+	shift || true
+	case "$action" in
+	render)
+		prepare_runtime
+		render_config
+		;;
+	start)
+		[[ $# == 0 ]] || {
+			usage >&2
+			return 2
+		}
+		start_services
+		;;
+	stop)
+		[[ $# == 0 ]] || {
+			usage >&2
+			return 2
+		}
+		stop_services
+		;;
+	restart)
+		[[ $# == 0 ]] || {
+			usage >&2
+			return 2
+		}
+		stop_services || true
+		start_services
+		;;
+	reload)
+		need_root reload
+		prepare_runtime
+		render_config
+		validate_runtime
+		if verify_record caddy; then
+			caddy reload --config "$GENERATED/Caddyfile" --adapter caddyfile
+		else
+			start_one caddy "$NETBOOT_CADDY_EXECUTABLE" "$GENERATED/Caddyfile" "$NETBOOT_CADDY_LOG"
+		fi
+		stop_one dnsmasq
+		start_one dnsmasq "$NETBOOT_DNSMASQ_EXECUTABLE" "$GENERATED/dnsmasq.conf" "$NETBOOT_DNSMASQ_LOG"
+		;;
+	status) status_services ;;
+	logs) logs ;;
+	tui) exec python3 "$SCRIPT_DIR/netboot-tui.py" "$@" ;;
+	help | -h | --help) usage ;;
+	*)
+		echo "netbootctl: unknown command '$action'" >&2
+		usage >&2
+		return 2
+		;;
+	esac
 }
-
 main "$@"

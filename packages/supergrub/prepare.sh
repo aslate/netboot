@@ -4,7 +4,6 @@ set -euo pipefail
 # shellcheck disable=SC1091
 source "$(dirname -- "${BASH_SOURCE[0]}")/../../scripts/setup/_common.sh"
 ROOT=$PROJECT_ROOT
-PACKAGE_DIR="$ROOT/packages/supergrub"
 MEMDISK="$ROOT/packages/systemrescue/sysresccd/boot/syslinux/memdisk"
 
 if [[ ! -s "$MEMDISK" ]]; then
